@@ -54,6 +54,12 @@ jobs:
             sleep 5
           done
           grep -q "海露" /tmp/page.html
-          grep -q "data:image/webp;base64" /tmp/page.html
+          grep -q "assets/eyes.webp" /tmp/page.html
+          grep -q "assets/birds.webp" /tmp/page.html
+          grep -q "assets/bottle.webp" /tmp/page.html
           grep -q "startBtn" /tmp/page.html
-          echo "PASS: page is served, game start control exists, and eye image is embedded in the HTML."
+          for asset in eyes birds bottle; do
+            curl --fail --silent --show-error "${SITE_URL%/}/assets/${asset}.webp" -o "/tmp/${asset}.webp"
+            test -s "/tmp/${asset}.webp"
+          done
+          echo "PASS: page is served, game start control exists, and all three real-image assets respond."
