@@ -27,10 +27,12 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Build and validate static site
+        run: python3 make_site.py
       - name: Upload site artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: "."
+          path: "dist"
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v4
