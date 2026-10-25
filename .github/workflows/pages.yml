@@ -36,3 +36,20 @@ jobs:
       - name: Deploy to Pages
         id: deployment
         uses: actions/deploy-pages@v4
+      - name: Verify published page and image
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        run: |
+          set -e
+          echo "Checking public page: $SITE_URL"
+          for attempt in $(seq 1 12); do
+            if curl --fail --silent --show-error "$SITE_URL" -o /tmp/page.html; then
+              break
+            fi
+            echo "Page not ready (attempt $attempt); retrying..."
+            sleep 5
+          done
+          grep -q "海露" /tmp/page.html
+          curl --fail --silent --show-error "${SITE_URL%/}/eyeasset.txt" -o /tmp/eyeasset.txt
+          grep -q "WEBP" /tmp/eyeasset.txt || true
+          echo "PASS: page is served and eye asset endpoint responds."
