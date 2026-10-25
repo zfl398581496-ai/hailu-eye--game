@@ -50,6 +50,6 @@ jobs:
             sleep 5
           done
           grep -q "海露" /tmp/page.html
-          curl --fail --silent --show-error "${SITE_URL%/}/eyeasset.txt" -o /tmp/eyeasset.txt
-          grep -q "WEBP" /tmp/eyeasset.txt || true
-          echo "PASS: page is served and eye asset endpoint responds."
+          grep -q "data:image/webp;base64" /tmp/page.html
+          grep -q "startBtn" /tmp/page.html
+          echo "PASS: page is served, game start control exists, and eye image is embedded in the HTML."
