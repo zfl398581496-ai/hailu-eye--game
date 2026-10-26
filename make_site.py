@@ -1,6 +1,9 @@
 from pathlib import Path
 import base64
 import re
+import cv2
+import numpy as np
+from PIL import Image
 import shutil
 import subprocess
 import tempfile
@@ -46,6 +49,73 @@ decode_chunks("eyes", 7, "eyes.webp", (360, 296))
 decode_chunks("birds", 3, "birds.webp", (360, 216))
 decode_chunks("bottle", 3, "bottle.webp", (135, 386))
 
+# Build a true layered eye preview from the supplied eye sprite. Each 180x74
+# source tile is retained; the original brow is removed with inpainting and
+# four paired brow styles are extracted from that same source sheet.
+def make_makeup_layers():
+    source = cv2.imread(str(assets / "eyes.webp"), cv2.IMREAD_COLOR)
+    if source is None or source.shape[:2] != (296, 360):
+        raise SystemExit(f"eyes.webp: expected 360x296, got {None if source is None else (source.shape[1], source.shape[0])}")
+    clean = source.copy()
+    styles = [(0, 0), (0, 1), (2, 0), (3, 1)]
+    brow_sheet = np.zeros((74, 180 * len(styles), 4), dtype=np.uint8)
+
+    def get_brow_mask(tile):
+        # Brows live in the top 16px of each source crop, above the lashes.
+        hsv = cv2.cvtColor(tile[:16], cv2.COLOR_BGR2HSV)
+        h, sat, val = cv2.split(hsv)
+        blue_decoration = (h >= 95) & (h <= 135) & (sat > 40)
+        raw = ((val < 224) & ((sat > 22) | (val < 145)) & (~blue_decoration)).astype(np.uint8) * 255
+        raw = cv2.morphologyEx(raw, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
+        count, labels, stats, _ = cv2.connectedComponentsWithStats(raw, 8)
+        kept = np.zeros_like(raw)
+        for label in range(1, count):
+            # Filter compression specks but keep individual brush strokes.
+            if stats[label, cv2.CC_STAT_AREA] >= 3:
+                kept[labels == label] = 255
+        kept = cv2.dilate(kept, np.ones((3, 3), np.uint8), iterations=1)
+        kept = cv2.erode(kept, np.ones((3, 3), np.uint8), iterations=1)
+        full = np.zeros((74, 180), dtype=np.uint8)
+        full[:16] = kept
+        return full
+
+    masks = {}
+    for row in range(4):
+        for col in range(2):
+            y, x = row * 74, col * 180
+            tile = source[y:y + 74, x:x + 180].copy()
+            mask = get_brow_mask(tile)
+            masks[(row, col)] = mask
+            erase = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1)
+            # Pad the tile so inpainting works even when a brow touches the top edge.
+            padded = cv2.copyMakeBorder(tile, 12, 12, 12, 12, cv2.BORDER_REFLECT)
+            padded_mask = cv2.copyMakeBorder(erase, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=0)
+            clean[y:y + 74, x:x + 180] = cv2.inpaint(padded, padded_mask, 4, cv2.INPAINT_TELEA)[12:86, 12:192]
+
+    for style_index, source_cell in enumerate(styles):
+        row, col = source_cell
+        y, x = row * 74, col * 180
+        tile = source[y:y + 74, x:x + 180].copy()
+        alpha = cv2.GaussianBlur(masks[source_cell], (3, 3), 0.65)
+        rgba = cv2.cvtColor(tile, cv2.COLOR_BGR2BGRA)
+        rgba[:, :, 3] = alpha
+        brow_sheet[:, style_index * 180:(style_index + 1) * 180] = rgba
+
+    clean_path = assets / "eyes-clean.webp"
+    brow_path = assets / "brows.webp"
+    Image.fromarray(cv2.cvtColor(clean, cv2.COLOR_BGR2RGB)).save(clean_path, format="WEBP", quality=95, method=6)
+    Image.fromarray(cv2.cvtColor(brow_sheet, cv2.COLOR_BGRA2RGBA)).save(brow_path, format="WEBP", lossless=True, method=6)
+    with Image.open(clean_path) as im:
+        if im.size != (360, 296):
+            raise SystemExit(f"eyes-clean.webp: unexpected dimensions {im.size}")
+    with Image.open(brow_path) as im:
+        if im.size != (720, 74) or im.mode != "RGBA":
+            raise SystemExit(f"brows.webp: expected RGBA 720x74, got {im.mode} {im.size}")
+    print(f"PASS asset eyes-clean.webp: 360x296, {clean_path.stat().st_size} bytes")
+    print(f"PASS asset brows.webp: RGBA 720x74, {brow_path.stat().st_size} bytes")
+
+make_makeup_layers()
+
 html = (root / "index.html").read_text(encoding="utf-8")
 scripts = re.findall(r"<script>(.*?)</script>", html, flags=re.S)
 if len(scripts) != 1:
@@ -57,7 +127,7 @@ try:
     subprocess.run(["node", "--check", str(js_path)], check=True, capture_output=True, text=True)
 finally:
     js_path.unlink(missing_ok=True)
-for required in ["assets/eyes.webp", "assets/birds.webp", "assets/bottle.webp", "startBtn", "drop-overlay", "YOUR BIRD TYPE"]:
+for required in ["assets/eyes.webp", "assets/eyes-clean.webp", "assets/brows.webp", "assets/birds.webp", "assets/bottle.webp", "startBtn", "drop-overlay", "YOUR BIRD TYPE"]:
     if required not in html:
         raise SystemExit(f"Missing app feature or asset reference: {required}")
 (dist / "index.html").write_text(html, encoding="utf-8")
