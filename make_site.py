@@ -60,23 +60,40 @@ def make_makeup_layers():
     styles = [(0, 0), (0, 1), (2, 0), (3, 1)]
     brow_sheet = np.zeros((74, 180 * len(styles), 4), dtype=np.uint8)
 
-    def get_brow_mask(tile):
-        # Brows live in the top 16px of each source crop, above the lashes.
-        hsv = cv2.cvtColor(tile[:16], cv2.COLOR_BGR2HSV)
+    def get_brow_mask(tile, exclude_blue=False):
+        # Only inspect the upper brow zone. Keep actual brush strokes, not pink skin texture.
+        roi = tile[:26]
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
         h, sat, val = cv2.split(hsv)
-        blue_decoration = (h >= 95) & (h <= 135) & (sat > 40)
-        raw = ((val < 224) & ((sat > 22) | (val < 145)) & (~blue_decoration)).astype(np.uint8) * 255
-        raw = cv2.morphologyEx(raw, cv2.MORPH_CLOSE, np.ones((3, 3), np.uint8))
-        count, labels, stats, _ = cv2.connectedComponentsWithStats(raw, 8)
+        candidate = (val < 214) & ((sat > 26) | (val < 150))
+        if exclude_blue:
+            blue_decoration = (h >= 95) & (h <= 135) & (sat > 40)
+            candidate &= ~blue_decoration
+        raw = candidate.astype(np.uint8) * 255
+        # Bridge brush-stroke gaps, then keep only the dominant brow shape in each half.
+        raw = cv2.morphologyEx(
+            raw, cv2.MORPH_CLOSE,
+            cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 5))
+        )
         kept = np.zeros_like(raw)
-        for label in range(1, count):
-            # Filter compression specks but keep individual brush strokes.
-            if stats[label, cv2.CC_STAT_AREA] >= 3:
-                kept[labels == label] = 255
-        kept = cv2.dilate(kept, np.ones((3, 3), np.uint8), iterations=1)
-        kept = cv2.erode(kept, np.ones((3, 3), np.uint8), iterations=1)
+        for x0, x1 in ((0, 90), (90, 180)):
+            half = raw[:, x0:x1]
+            count, labels, stats, _ = cv2.connectedComponentsWithStats(half, 8)
+            candidates = []
+            for label in range(1, count):
+                area = int(stats[label, cv2.CC_STAT_AREA])
+                width = int(stats[label, cv2.CC_STAT_WIDTH])
+                height = int(stats[label, cv2.CC_STAT_HEIGHT])
+                if area >= 8 and width >= 5 and height >= 2:
+                    candidates.append((area, label))
+            if candidates:
+                # Largest coherent component per half removes compression specks and stray marks.
+                _, best = max(candidates)
+                kept[:, x0:x1][labels == best] = 255
+        # Expand only the brow silhouette to cover anti-aliased pixels; keep a soft alpha edge.
+        kept = cv2.dilate(kept, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3)), iterations=1)
         full = np.zeros((74, 180), dtype=np.uint8)
-        full[:16] = kept
+        full[:26] = kept
         return full
 
     masks = {}
@@ -84,19 +101,38 @@ def make_makeup_layers():
         for col in range(2):
             y, x = row * 74, col * 180
             tile = source[y:y + 74, x:x + 180].copy()
-            mask = get_brow_mask(tile)
-            masks[(row, col)] = mask
-            erase = cv2.dilate(mask, np.ones((5, 5), np.uint8), iterations=1)
-            # Pad the tile so inpainting works even when a brow touches the top edge.
-            padded = cv2.copyMakeBorder(tile, 12, 12, 12, 12, cv2.BORDER_REFLECT)
-            padded_mask = cv2.copyMakeBorder(erase, 12, 12, 12, 12, cv2.BORDER_CONSTANT, value=0)
-            clean[y:y + 74, x:x + 180] = cv2.inpaint(padded, padded_mask, 4, cv2.INPAINT_TELEA)[12:86, 12:192]
+
+            # The red angular eye in row 3, right has no detached brow; don't erase its lash line.
+            if (row, col) == (2, 1):
+                clean[y:y + 74, x:x + 180] = tile
+                continue
+
+            erase_source = get_brow_mask(tile, exclude_blue=False)
+            erase = np.zeros((74, 180), dtype=np.uint8)
+            erase[:26] = cv2.dilate(
+                erase_source[:26],
+                cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 5)),
+                iterations=1
+            )
+            # Inpaint directly against the real neighboring skin; reflecting the top edge
+            # can mirror the clipped brow back into the fill and create a visible ghost.
+            cleaned = cv2.inpaint(tile, erase, 5, cv2.INPAINT_TELEA)
+            clean[y:y + 74, x:x + 180] = cleaned
+
+            masks[(row, col)] = get_brow_mask(tile, exclude_blue=True)
+
+    # Only the four selected source cells provide independent brow options.
+    for source_cell in styles:
+        if source_cell not in masks:
+            y, x = source_cell[0] * 74, source_cell[1] * 180
+            masks[source_cell] = get_brow_mask(source[y:y + 74, x:x + 180].copy(), exclude_blue=True)
 
     for style_index, source_cell in enumerate(styles):
         row, col = source_cell
         y, x = row * 74, col * 180
         tile = source[y:y + 74, x:x + 180].copy()
-        alpha = cv2.GaussianBlur(masks[source_cell], (3, 3), 0.65)
+        source_mask = masks[source_cell]
+        alpha = cv2.GaussianBlur(source_mask, (3, 3), 0.45)
         rgba = cv2.cvtColor(tile, cv2.COLOR_BGR2BGRA)
         rgba[:, :, 3] = alpha
         brow_sheet[:, style_index * 180:(style_index + 1) * 180] = rgba
