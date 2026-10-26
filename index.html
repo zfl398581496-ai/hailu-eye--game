@@ -4,14 +4,14 @@
 .autoScene{height:274px;position:relative;overflow:hidden;border:2px solid var(--ink);border-radius:16px;background:linear-gradient(180deg,#fff 0%,#f5fbff 46%,#dff7f3 100%);margin:13px 0}
 .autoBottle{position:absolute;z-index:3;top:1px;left:calc(50% - 43px);width:86px;height:166px;transform-origin:50% 12%;animation:bottleTilt 2.35s cubic-bezier(.3,.7,.3,1) both}
 .autoBottle img{width:100%;height:100%;object-fit:contain;mix-blend-mode:multiply;filter:drop-shadow(1px 2px 1px #3028241c)}
-.autoDrop{position:absolute;z-index:5;top:47px;left:calc(50% + 3px);width:18px;height:25px;border:2px solid #247cae;background:linear-gradient(135deg,#b5efff,#48addf);border-radius:70% 30% 65% 35%;transform:rotate(45deg) scale(.65);opacity:0;animation:dropIntoEye 1.42s .53s cubic-bezier(.4,.02,.7,.35) forwards}
+.autoDrop{position:absolute;z-index:5;top:30px;left:calc(50% + 3px);width:18px;height:25px;border:2px solid #247cae;background:linear-gradient(135deg,#b5efff,#48addf);border-radius:70% 30% 65% 35%;transform:rotate(45deg) scale(.65);opacity:0;animation:dropIntoEye 1.42s .53s cubic-bezier(.4,.02,.7,.35) forwards}
 .autoEyeTarget{position:absolute;z-index:2;left:10%;bottom:15px;width:80%;border:2px solid var(--ink);border-radius:13px;overflow:hidden;background:#f4d5d2;box-shadow:2px 3px 0 #30282422;animation:eyeReceive 1.45s 1.65s ease-out both}
 .autoEyeTarget .eyeTile{width:100%}
 .autoEyeTarget:after{content:"";position:absolute;left:35%;top:16%;width:30%;height:68%;border:3px solid #fff;box-shadow:0 0 0 5px #6ec7e5aa;border-radius:50%;opacity:0;pointer-events:none;animation:eyeShimmer .7s 1.82s ease-out forwards}
 .autoCaption{font-size:11px;font-weight:850;text-align:center;color:#5e746f;min-height:18px}
 .autoCaption:after{content:"正在轻轻倾斜，水润马上到达";animation:autoCaptionText 2.7s steps(1,end) forwards}
 @keyframes bottleTilt{0%{transform:rotate(0)}20%,58%{transform:rotate(38deg)}82%,100%{transform:rotate(0)}}
-@keyframes dropIntoEye{0%{top:46px;left:calc(50% + 9px);opacity:0;transform:rotate(45deg) scale(.55)}16%{opacity:1;transform:rotate(45deg) scale(1)}78%{top:183px;left:calc(50% - 8px);opacity:1;transform:rotate(45deg) scale(1)}100%{top:192px;left:calc(50% - 8px);opacity:0;transform:rotate(45deg) scale(.24)}}
+@keyframes dropIntoEye{0%{top:29px;left:calc(50% + 9px);opacity:0;transform:rotate(45deg) scale(.55)}16%{opacity:1;transform:rotate(45deg) scale(1)}78%{top:183px;left:calc(50% - 8px);opacity:1;transform:rotate(45deg) scale(1)}100%{top:192px;left:calc(50% - 8px);opacity:0;transform:rotate(45deg) scale(.24)}}
 @keyframes eyeReceive{0%,50%{filter:none}70%{filter:brightness(1.12)}100%{filter:none}}
 @keyframes eyeShimmer{0%{opacity:0;transform:scale(.55)}45%{opacity:.95;transform:scale(1)}100%{opacity:0;transform:scale(1.23)}}
 @keyframes autoCaptionText{0%,65%{content:"瓶身倾斜 · 液滴正在落下"}100%{content:"水润到达 · 正在继续"}}
