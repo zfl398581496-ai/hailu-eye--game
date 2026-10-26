@@ -31,6 +31,8 @@ jobs:
         uses: actions/configure-pages@v5
         with:
           enablement: true
+      - name: Install image processing dependencies
+        run: python3 -m pip install --disable-pip-version-check --quiet pillow opencv-python-headless
       - name: Build and validate static site
         run: python3 make_site.py
       - name: Upload site artifact
@@ -54,12 +56,13 @@ jobs:
             sleep 5
           done
           grep -q "海露" /tmp/page.html
-          grep -q "assets/eyes.webp" /tmp/page.html
+          grep -q "assets/eyes-clean.webp" /tmp/page.html
+          grep -q "assets/brows.webp" /tmp/page.html
           grep -q "assets/birds.webp" /tmp/page.html
           grep -q "assets/bottle.webp" /tmp/page.html
           grep -q "startBtn" /tmp/page.html
-          for asset in eyes birds bottle; do
+          for asset in eyes-clean brows birds bottle; do
             curl --fail --silent --show-error "${SITE_URL%/}/assets/${asset}.webp" -o "/tmp/${asset}.webp"
             test -s "/tmp/${asset}.webp"
           done
-          echo "PASS: page is served, game start control exists, and all three real-image assets respond."
+          echo "PASS: page is served, game start control exists, and clean-eye, brow, bird, and bottle image assets respond."
