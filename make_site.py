@@ -127,7 +127,7 @@ try:
     subprocess.run(["node", "--check", str(js_path)], check=True, capture_output=True, text=True)
 finally:
     js_path.unlink(missing_ok=True)
-for required in ["assets/eyes.webp", "assets/eyes-clean.webp", "assets/brows.webp", "assets/birds.webp", "assets/bottle.webp", "startBtn", "drop-overlay", "YOUR BIRD TYPE"]:
+for required in ["assets/eyes-clean.webp", "assets/brows.webp", "assets/birds.webp", "assets/bottle.webp", "startBtn", "drop-overlay", "YOUR BIRD TYPE"]:
     if required not in html:
         raise SystemExit(f"Missing app feature or asset reference: {required}")
 (dist / "index.html").write_text(html, encoding="utf-8")
